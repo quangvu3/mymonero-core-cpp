@@ -69,22 +69,7 @@ optional<uint64_t> _possible_uint64_from_json(
 	}
 	return none;
 }
-//
-LightwalletAPI_Req_GetUnspentOuts monero_send_routine::new__req_params__get_unspent_outs(
-	string from_address_string,
-	string sec_viewKey_string
-) {
-	ostringstream dustT_ss;
-	dustT_ss << dust_threshold();
-	return {
-		std::move(from_address_string),
-		std::move(sec_viewKey_string),
-		"0", // amount - always sent as "0"
-		fixed_mixinsize(),
-		true, // use dust
-		dustT_ss.str()
-	};
-}
+
 LightwalletAPI_Req_GetRandomOuts monero_send_routine::new__req_params__get_random_outs(
 	vector<SpendableOutput> &step1__using_outs
 ) {
@@ -475,84 +460,5 @@ void _reenterable_construct_and_send_tx(
 	args.get_random_outs_fn(
 		new__req_params__get_random_outs(step1_retVals.using_outs),
 		get_random_outs_fn__cb_fn
-	);
-}
-//
-//
-// Entrypoint
-void monero_send_routine::async__send_funds(Async_SendFunds_Args args)
-{
-	crypto::secret_key sec_viewKey{};
-	crypto::secret_key sec_spendKey{};
-	crypto::public_key pub_spendKey{};
-	{
-		bool r = false;
-		r = epee::string_tools::hex_to_pod(args.sec_viewKey_string, sec_viewKey);
-		if (!r) {
-			SendFunds_Error_RetVals error_retVals;
-			error_retVals.explicit_errMsg = "Invalid secret view key";
-			args.error_cb_fn(error_retVals);
-			return;
-		}
-		r = epee::string_tools::hex_to_pod(args.sec_spendKey_string, sec_spendKey);
-		if (!r) {
-			SendFunds_Error_RetVals error_retVals;
-			error_retVals.explicit_errMsg = "Invalid sec spend key";
-			args.error_cb_fn(error_retVals);
-			return;
-		}
-		r = epee::string_tools::hex_to_pod(args.pub_spendKey_string, pub_spendKey);
-		if (!r) {
-			SendFunds_Error_RetVals error_retVals;
-			error_retVals.explicit_errMsg = "Invalid public spend key";
-			args.error_cb_fn(error_retVals);
-			return;
-		}
-	}
-	
-	uint64_t total_sending_amount = std::accumulate(
- 		args.sending_amounts.begin(),
- 		args.sending_amounts.end(),
- 		0);
-	api_fetch_cb_fn get_unspent_outs_fn__cb_fn = [
-		args,
-		total_sending_amount,
-		sec_viewKey, sec_spendKey, pub_spendKey
-	] (
-		const property_tree::ptree &res
-	) -> void {
-		auto parsed_res = new__parsed_res__get_unspent_outs(
-			res,
-			sec_viewKey, sec_spendKey, pub_spendKey
-		);
-		if (parsed_res.err_msg != none) {
-			SendFunds_Error_RetVals error_retVals;
-			error_retVals.explicit_errMsg = std::move(*(parsed_res.err_msg));
-			args.error_cb_fn(error_retVals);
-			return;
-		}
-		_reenterable_construct_and_send_tx(_SendFunds_ConstructAndSendTx_Args{
-			args.from_address_string, args.sec_viewKey_string, args.sec_spendKey_string,
-			args.to_address_strings, args.payment_id_string, args.sending_amounts, args.is_sweeping, args.simple_priority,
-			args.get_random_outs_fn, args.submit_raw_tx_fn, args.status_update_fn, args.error_cb_fn, args.success_cb_fn,
-			args.unlock_time == none ? 0 : *(args.unlock_time),
-			args.nettype == none ? MAINNET : *(args.nettype),
-			//
-			*(parsed_res.unspent_outs),
-			*(parsed_res.per_byte_fee),
-			*(parsed_res.fee_mask),
-			parsed_res.fork_version,
-			//
-			sec_viewKey, sec_spendKey
-		});
-	};
-	args.status_update_fn(fetchingLatestBalance);
-	//
-	args.get_unspent_outs_fn(
-		new__req_params__get_unspent_outs(
-			args.from_address_string,
-			args.sec_viewKey_string
-		),
-		get_unspent_outs_fn__cb_fn
 	);
 }
