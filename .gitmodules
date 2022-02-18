@@ -1,3 +1,0 @@
-[submodule "contrib/monero-core-custom"]
-	path = contrib/monero-core-custom
-	url = https://github.com/quangvu3/monero-core-custom
